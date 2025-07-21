@@ -1,6 +1,27 @@
 # OTP Send and Verify API
 
-This API lets you send and verify One-Time Passwords (OTPs) for user authentication. It's easy to use with your API key!
+[![npm version](https://badge.fury.io/js/openlyne-otp.svg)](https://badge.fury.io/js/openlyne-otp)
+[![Python](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
+Send and verify One-Time Passwords (OTPs) for user authentication using your API key.
+
+> **SMS Provider**: Powered by [Africa's Talking](https://africastalking.com/)
+
+## 🛡️ Security & Privacy
+
+- **Data Protection**: Phone numbers and OTP codes are hashed before database storage
+- **Encryption**: All API communications use TLS 1.2+
+- **Retention**: OTP data is automatically deleted after verification or 3-minute expiry
+- **Regional Support**: Available in all countries supported by Africa's Talking
+
+## 💰 Pricing
+
+**Pay-per-SMS**: Africa's Talking rates + 15% service fee
+- **Sandbox**: Free for testing
+- **Production**: Charged only for successfully delivered SMS
+- View current SMS rates at [Africa's Talking Pricing](https://africastalking.com/pricing)
 
 ## Endpoints
 
@@ -94,6 +115,12 @@ curl -X POST https://openlyne.sliplane.app/webhook/verify-otp \
 - OTPs expire after 3 minutes
 - You can only request a new OTP every 30 seconds for the same uid
 - Use `"env": "sandbox"` in the Send OTP body for testing, or skip it for real SMS
+
+### Testing in Sandbox Mode
+
+Use the [Africa's Talking Phone Simulator](https://simulator.africastalking.com/simulator) for testing:
+1. Set `"env": "sandbox"` in Send OTP requests
+2. View messages in the simulator with any valid phone number format
 
 ## Code Examples
 
@@ -189,3 +216,70 @@ verifyOTP(uid, "123456").then(console.log); // Verifies OTP
 ---
 
 **Replace `YOUR_API_KEY` with your actual API key. You're ready to go! 🚀**
+
+## 📊 System Architecture
+
+<details>
+<summary>🔄 Data Flow Diagrams</summary>
+
+Below are flowcharts showing the workflows for the Send OTP and Verify OTP endpoints. The Send OTP process includes a step to hash the OTP before saving it to the database for security.
+
+### Send OTP Flowchart
+
+```mermaid
+graph TD
+    A[Receive POST /send-otp] --> B{Valid API Key?}
+    B -->|No| C[Return 401 Unauthorized]
+    B -->|Yes| D{Valid Phone & UUID?}
+    D -->|No| E[Return 400 Bad Request]
+    D -->|Yes| F[Check DB for OTP]
+    F --> G{Recent OTP < 30s?}
+    G -->|Yes| H[Return 429 Too Many Requests]
+    G -->|No| I[Generate OTP]
+    I --> J[Hash OTP]
+    J --> K{Env = Sandbox?}
+    K -->|Yes| L[Send SMS via Sandbox]
+    K -->|No| M[Send SMS via Production]
+    L --> N[Save Hashed OTP to DB]
+    M --> N
+    N --> O{SMS & DB Success?}
+    O -->|Yes| P[Return 200 OK]
+    O -->|No| Q[Return Error (e.g., 500)]
+```
+
+### Verify OTP Flowchart
+
+```mermaid
+graph TD
+    A[Receive POST /verify-otp] --> B{Valid API Key?}
+    B -->|No| C[Return 401 Unauthorized]
+    B -->|Yes| D{Valid UUID & 6-Digit Code?}
+    D -->|No| E[Return 400 Bad Request]
+    D -->|Yes| F[Query DB for Hashed OTP]
+    F --> G{OTP Matches & < 3min?}
+    G -->|No| H[Return 400 Invalid OTP]
+    G -->|Yes| I[Delete OTP from DB]
+    I --> J{Deletion Success?}
+    J -->|Yes| K[Return 200 OK]
+    J -->|No| L[Return 500 Internal Server Error]
+```
+
+### Notes on Security
+- The OTP is hashed before being stored in the database to enhance security
+- During verification, the provided OTP is hashed and compared with the stored hash
+- All data is validated within the 3-minute validity period
+
+</details>
+
+## 📞 Support
+
+- **Documentation Issues**: Create an issue in this repository
+- **API Support**: Contact via your dashboard
+- **Status Updates**: Check our status page for service updates
+
+## 📋 Terms & Limits
+
+- **Rate Limiting**: 1 OTP per UID every 30 seconds
+- **OTP Validity**: 3 minutes from generation
+- **Usage Policy**: Fair use policy applies
+- **SLA**: 99.9% uptime commitment
