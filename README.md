@@ -1,150 +1,191 @@
-# Openlyne API GUIDE (otp)
+# OTP Send and Verify API
 
-JavaScript functions for integrating with the Openlyne OTP service.
+This API lets you send and verify One-Time Passwords (OTPs) for user authentication. It's easy to use with your API key!
 
-## Installation
+## Endpoints
 
-Copy the functions below into your project and configure the API key.
+### 1. Send OTP
 
-## Configuration
+- **URL**: `/send-otp`
+- **Method**: `POST`
+- **Headers**:
+  - `x-api-key`: Your API key
 
-```javascript
-const API_BASE_URL = 'https://openlyne.sliplane.app/webhook';
-const API_KEY = 'your-api-key-here';
+**Body**:
+- `phone`: Phone number with country code (e.g., `256700123456`)
+- `uid`: User ID (a UUID like `123e4567-e89b-12d3-a456-426614174000`)
+- `env`: (optional) Use `"sandbox"` for testing; leave it out for live mode
+
+**What it does**: Sends a 6-digit OTP to the phone and saves it with the uid.
+
+#### Example Request:
+```bash
+curl -X POST https://openlyne.sliplane.app/webhook/send-otp \
+  -H "x-api-key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"phone": 256700123456, "uid": "123e4567-e89b-12d3-a456-426614174000", "env": "sandbox"}'
 ```
 
-## Functions
+#### Responses:
 
-### sendOTP(uid, phone, sandbox)
+- **200 OK**: OTP sent!
+  ```json
+  {
+    "success": true,
+    "data": {
+      "status": "Sent",
+      "number": "256700123456"
+    },
+    "message": "OTP sent successfully",
+    "error": null
+  }
+  ```
 
-Sends an OTP to the specified phone number.
+- **400 Bad Request**: Check your phone or uid
+- **401 Unauthorized**: Wrong API key
+- **429 Too Many Requests**: Wait 30 seconds before trying again
+- **500 Internal Server Error**: Something went wrong on our end
 
-**Parameters:**
-- `uid` (string): Unique user identifier
-- `phone` (string): Phone number in international format (e.g., "256700000000")
-- `sandbox` (boolean, optional): Enable sandbox mode for testing
+### 2. Verify OTP
 
-**Returns:** Promise resolving to the API response
+- **URL**: `/verify-otp`
+- **Method**: `POST`
+- **Headers**:
+  - `x-api-key`: Your API key
 
-### verifyOTP(uid, code)
+**Body**:
+- `uid`: User ID (same UUID as before)
+- `code`: The 6-digit OTP you received
 
-Verifies the OTP code entered by the user.
+**What it does**: Checks if the OTP matches and is within 3 minutes. If valid, it's deleted.
 
-**Parameters:**
-- `uid` (string): Unique user identifier (must match the one used in sendOTP)
-- `code` (string): OTP code entered by the user
+#### Example Request:
+```bash
+curl -X POST https://openlyne.sliplane.app/webhook/verify-otp \
+  -H "x-api-key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"uid": "123e4567-e89b-12d3-a456-426614174000", "code": "123456"}'
+```
 
-**Returns:** Promise resolving to the API response
+#### Responses:
 
-## Code
+- **200 OK**: OTP verified!
+  ```json
+  {
+    "success": true,
+    "data": {
+      "message": "OTP verified successfully",
+      "contact_value": "256700123456"
+    },
+    "message": "Verification successful",
+    "error": {}
+  }
+  ```
+
+- **400 Bad Request**: OTP is wrong or expired
+- **401 Unauthorized**: Wrong API key
+- **500 Internal Server Error**: Something went wrong on our end
+
+## Quick Tips
+
+- Always include your API key in the `x-api-key` header
+- `phone` needs a country code (e.g., 256 for Uganda)
+- `uid` must be a valid UUID
+- OTPs expire after 3 minutes
+- You can only request a new OTP every 30 seconds for the same uid
+- Use `"env": "sandbox"` in the Send OTP body for testing, or skip it for real SMS
+
+## Code Examples
+
+Below are examples of how to use the API in Python and JavaScript. Replace `YOUR_API_KEY` with your actual API key.
+
+<details>
+<summary>🐍 Python Example</summary>
+
+```python
+import requests
+import json
+
+# Base URL for your n8n instance
+BASE_URL = "https://openlyne.sliplane.app/webhook"
+API_KEY = "YOUR_API_KEY"
+HEADERS = {"x-api-key": API_KEY, "Content-Type": "application/json"}
+
+def send_otp(phone, uid, env="sandbox"):
+    url = f"{BASE_URL}/send-otp"
+    data = {"phone": phone, "uid": uid, "env": env}
+    try:
+        response = requests.post(url, headers=HEADERS, json=data)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        return {"error": str(e)}
+
+def verify_otp(uid, code):
+    url = f"{BASE_URL}/verify-otp"
+    data = {"uid": uid, "code": code}
+    try:
+        response = requests.post(url, headers=HEADERS, json=data)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        return {"error": str(e)}
+
+# Example usage
+phone = 256700123456
+uid = "123e4567-e89b-12d3-a456-426614174000"
+print(send_otp(phone, uid))  # Sends OTP
+print(verify_otp(uid, "123456"))  # Verifies OTP
+```
+
+</details>
+
+<details>
+<summary>🔥 JavaScript Example</summary>
 
 ```javascript
-const API_BASE_URL = 'https://openlyne.sliplane.app/webhook';
-const API_KEY = 'your-api-key-here';
-
-// Send OTP to phone number
-export const sendOTP = async (uid, phone, sandbox) => {
-  try {
-    const body = { uid, phone };
-    if (sandbox !== undefined) {
-      body.sandbox = sandbox;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/send-otp`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error sending OTP:', error);
-    throw error;
-  }
+const BASE_URL = "https://openlyne.sliplane.app/webhook";
+const API_KEY = "YOUR_API_KEY";
+const HEADERS = {
+  "x-api-key": API_KEY,
+  "Content-Type": "application/json"
 };
 
-// Verify OTP code
-export const verifyOTP = async (uid, code) => {
+async function sendOTP(phone, uid, env = "sandbox") {
   try {
-    const response = await fetch(`${API_BASE_URL}/verify-otp`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
-      },
-      body: JSON.stringify({
-        uid,
-        code,
-      }),
+    const response = await fetch(`${BASE_URL}/send-otp`, {
+      method: "POST",
+      headers: HEADERS,
+      body: JSON.stringify({ phone, uid, env })
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
     return await response.json();
   } catch (error) {
-    console.error('Error verifying OTP:', error);
-    throw error;
+    return { error: error.message };
   }
-};
+}
+
+async function verifyOTP(uid, code) {
+  try {
+    const response = await fetch(`${BASE_URL}/verify-otp`, {
+      method: "POST",
+      headers: HEADERS,
+      body: JSON.stringify({ uid, code })
+    });
+    return await response.json();
+  } catch (error) {
+    return { error: error.message };
+  }
+}
+
+// Example usage
+const phone = 256700123456;
+const uid = "123e4567-e89b-12d3-a456-426614174000";
+sendOTP(phone, uid).then(console.log); // Sends OTP
+verifyOTP(uid, "123456").then(console.log); // Verifies OTP
 ```
 
-## Usage Examples
+</details>
 
-```javascript
-// Send OTP without sandbox mode
-const result = await sendOTP('user123', '256700000000');
+---
 
-// Send OTP with sandbox mode enabled
-const result = await sendOTP('user123', '256700000000', true);
-
-// Verify OTP code
-const verification = await verifyOTP('user123', '123456');
-```
-
-## Testing
-
-Use the simulator for testing OTP functionality:
-**Simulator:** https://simulator.africastalking.com/
-
-## cURL Examples
-
-### Send OTP
-```bash
-curl --location 'https://openlyne.sliplane.app/webhook/send-otp' \
---header 'Content-Type: application/json' \
---header 'X-API-Key: your-api-key-here' \
---data '{
-    "uid": "user123",
-    "phone": "256700000000",
-    "sandbox": true
-}'
-```
-
-### Verify OTP
-```bash
-curl --location 'https://openlyne.sliplane.app/webhook/verify-otp' \
---header 'Content-Type: application/json' \
---header 'X-API-Key: your-api-key-here' \
---data '{
-    "uid": "user123",
-    "code": "123456"
-}'
-```
-
-## Error Handling
-
-Both functions include error handling and will throw errors for:
-- Network issues
-- HTTP errors (non-200 status codes)
-- Invalid API responses
-
-Make sure to wrap your calls in try-catch blocks or use `.catch()` for proper error handling.
+**Replace `YOUR_API_KEY` with your actual API key. You're ready to go! 🚀**
